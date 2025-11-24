@@ -10,7 +10,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'https://x-astris-frontend.vercel.app',
     ],
-    credentials: true,
+    credentials: false,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Authorization',
   });
