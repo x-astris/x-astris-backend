@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "PnlYear" ALTER COLUMN "cogsPct" SET DEFAULT 0,
+ALTER COLUMN "opexPct" SET DEFAULT 0;

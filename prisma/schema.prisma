@@ -1,0 +1,92 @@
+// Prisma Schema — FINAL VERSION
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// USERS
+//
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String?
+  projects  Project[]
+  createdAt DateTime  @default(now())
+}
+
+//
+// PROJECTS
+//
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  startYear   Int
+  description String?
+  forecastYears Int @default(5)
+  user        User          @relation(fields: [userId], references: [id])
+  userId      Int
+
+  pnlYears    PnlYear[]
+  balYears    BalanceYear[]
+
+  createdAt   DateTime      @default(now())
+}
+
+//
+// PROFIT & LOSS (PNL)
+//
+model PnlYear {
+  id           Int      @id @default(autoincrement())
+  year         Int
+  revenue      Float    @default(0)
+  cogs         Float    @default(0)
+  opex         Float    @default(0)
+  depreciation Float    @default(0)
+  interest     Float    @default(0)
+  taxes        Float    @default(0)
+  revenueGrowthPct Float? @default(0)
+  cogsPct          Float? @default(0)
+  opexPct          Float? @default(0)
+  taxRatePct       Float? @default(25)
+  
+  @@unique([projectId, year])
+  
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId    String
+}
+
+//
+// BALANCE SHEET
+//
+model BalanceYear {
+  id                          Int      @id @default(autoincrement())
+  year                        Int
+  fixedAssets                 Float    @default(0)
+  investments                 Float    @default(0)
+  inventory                   Float    @default(0)
+  receivables                 Float    @default(0)
+  otherShortTermAssets        Float    @default(0)
+  cash                        Float    @default(0)
+  equity                      Float    @default(0)
+  longDebt                    Float    @default(0)
+  shortDebt                   Float    @default(0)
+  payables                    Float    @default(0)
+  otherShortTermLiabilities   Float    @default(0)
+  depreciationPct             Float    @default(10)
+  interestRatePct             Float    @default(5)
+  ratioDio                   Float? 
+  ratioDso                   Float?  
+  ratioDpo                   Float?  
+  ratioOcaPct                Float?  
+  ratioOclPct                Float?  
+
+  project                     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId                   String
+}

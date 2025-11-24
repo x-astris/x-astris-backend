@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "BalanceYear" ADD COLUMN     "depreciationPct" DOUBLE PRECISION NOT NULL DEFAULT 10,
+ADD COLUMN     "interestRatePct" DOUBLE PRECISION NOT NULL DEFAULT 5;
