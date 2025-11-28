@@ -5,10 +5,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     cors: {
       origin: [
-        'http://localhost:3000',
-        'https://x-astris-frontend.vercel.app',
-        'null'
-      ],
+  'http://localhost:3000',
+  'https://x-astris-frontend.vercel.app',
+  'https://x-astris.com',
+  'https://www.x-astris.com',
+  'null'
+],
       credentials: false,
       methods: ['GET','HEAD','PUT','PATCH','POST','DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization'],
