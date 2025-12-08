@@ -11,6 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { PrismaService } from '../prisma/prisma.service';
     AuthService,
     PrismaService,
     JwtStrategy,      // ⬅ Strategy must be a provider
-    JwtAuthGuard,     // ⬅ Guard must be a provider
+    JwtAuthGuard,
+    MailService,    // ⬅ Guard must be a provider
   ],
 
   exports: [
