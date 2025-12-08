@@ -6,6 +6,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
+
 import { AuthService } from './auth.service';
 import type { Response } from 'express';
 
@@ -13,6 +14,9 @@ import type { Response } from 'express';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // --------------------------------------------------------
+  // REGISTER
+  // --------------------------------------------------------
   @Post('register')
   register(
     @Body('email') email: string,
@@ -21,6 +25,9 @@ export class AuthController {
     return this.authService.register(email, password);
   }
 
+  // --------------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------------
   @Post('login')
   login(
     @Body('email') email: string,
@@ -30,7 +37,7 @@ export class AuthController {
   }
 
   // --------------------------------------------------------
-  // ✅ NEW: POST verify-email (for frontend POST requests)
+  // VERIFY EMAIL (POST) - frontend API usage
   // --------------------------------------------------------
   @Post('verify-email')
   verifyEmail(@Body('token') token: string) {
@@ -38,18 +45,38 @@ export class AuthController {
   }
 
   // --------------------------------------------------------
-  // ✅ NEW: GET verify-email (for clicking the email link)
-  //      -> redirects the user to your frontend
+  // VERIFY EMAIL (GET) - clicked from email
+  // Redirects user back to your front-end
   // --------------------------------------------------------
   @Get('verify-email')
-async verifyEmailGet(
-  @Query('token') token: string,
-  @Res({ passthrough: true }) res: Response,
-) {
-  await this.authService.verifyEmail(token);
-  res.redirect(`${process.env.APP_URL}/login?verified=1`);
-}
+  async verifyEmailGet(
+    @Query('token') token: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.verifyEmail(token);
+    res.redirect(`${process.env.APP_URL}/login?verified=1`);
+  }
 
+  // --------------------------------------------------------
+  // REQUEST PASSWORD RESET
+  // --------------------------------------------------------
+  @Post('request-reset')
+  requestReset(@Body('email') email: string) {
+    return this.authService.requestPasswordReset(email);
+  }
+
+  // --------------------------------------------------------
+  // RESET PASSWORD
+  // --------------------------------------------------------
+  @Post('reset-password')
+  resetPassword(
+    @Body('token') token: string,
+    @Body('password') password: string,
+  ) {
+    return this.authService.resetPassword(token, password);
+  }
+
+  // TEST ROUTE
   @Post('test')
   test() {
     return { ok: true };

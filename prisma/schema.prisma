@@ -21,6 +21,7 @@ model User {
   createdAt DateTime  @default(now())
   verified   Boolean   @default(false)
   verificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 //
@@ -94,6 +95,15 @@ model BalanceYear {
 }
 
 model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
