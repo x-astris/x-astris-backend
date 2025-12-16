@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private resend: Resend;
+  private readonly resend: Resend;
 
   constructor() {
     this.resend = new Resend(process.env.RESEND_API_KEY);
@@ -23,7 +23,7 @@ export class MailService {
         subject: 'Verify your email',
         html: `
           <h1>Verify your email</h1>
-          <p>Click the link below to activate your account:</p>
+          <p>Click the link below to activate your X-ASTRiS account:</p>
           <p><a href="${verifyUrl}">${verifyUrl}</a></p>
           <p>If you didn’t create this account, you can ignore this message.</p>
         `,
@@ -31,6 +31,36 @@ export class MailService {
     } catch (error) {
       this.logger.error('Failed to send verification email', error);
       throw error;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // SEND WELCOME EMAIL
+  // ------------------------------------------------------------
+  async sendWelcomeEmail(email: string) {
+    try {
+      await this.resend.emails.send({
+        from: process.env.MAIL_FROM || 'Your App <noreply@yourapp.com>',
+        to: email,
+        subject: 'Welcome to X-ASTRiS 🚀',
+        html: `
+          <h1>Welcome to X-ASTRiS 🚀</h1>
+          <p>Your email has been successfully verified.</p>
+
+          <p>You can now log in and start creating your own financial forecast models!</p>
+
+          <p>
+            <a href="${process.env.APP_URL}/login">
+              Log in to your account
+            </a>
+          </p>
+
+          <p>If you have questions, please contact us via info@x-astris.com.</p>
+        `,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send welcome email', error);
+      // DO NOT throw — verification must succeed
     }
   }
 
@@ -47,7 +77,7 @@ export class MailService {
           <h1>Password Reset Request</h1>
           <p>You requested a password reset. Click the link below to set a new password:</p>
           <p><a href="${resetUrl}">${resetUrl}</a></p>
-          <p>If you didn't request this reset, just ignore this email. Your password will remain unchanged.</p>
+          <p>If you didn't request this reset, just ignore this email.</p>
         `,
       });
     } catch (error) {

@@ -24,7 +24,7 @@ export class AuthService {
   ) {}
 
   // ------------------------------------------------------------
-  // REGISTER USER + SEND EMAIL VERIFICATION LINK
+  // REGISTER USER + SEND VERIFICATION EMAIL
   // ------------------------------------------------------------
   async register(email: string, password: string) {
     const hashed = await bcrypt.hash(password, 10);
@@ -48,7 +48,7 @@ export class AuthService {
         },
       });
 
-      await this.mail.sendVerificationEmail(email, token);
+      await this.mail.sendVerificationEmail(user.email, token);
 
       return {
         message: 'Registration successful. Please verify your email.',
@@ -64,7 +64,7 @@ export class AuthService {
   }
 
   // ------------------------------------------------------------
-  // VERIFY EMAIL TOKEN
+  // VERIFY EMAIL TOKEN + SEND WELCOME EMAIL
   // ------------------------------------------------------------
   async verifyEmail(token: string) {
     if (!token) {
@@ -73,6 +73,7 @@ export class AuthService {
 
     const record = await this.prisma.emailVerificationToken.findUnique({
       where: { token },
+      include: { user: true },
     });
 
     if (!record) {
@@ -80,16 +81,33 @@ export class AuthService {
     }
 
     if (record.expiresAt < new Date()) {
-      await this.prisma.emailVerificationToken.delete({ where: { token } });
+      await this.prisma.emailVerificationToken.delete({
+        where: { token },
+      });
       throw new BadRequestException('Token expired.');
     }
 
+    // Already verified (idempotency guard)
+    if (record.user.verified) {
+      await this.prisma.emailVerificationToken.delete({
+        where: { token },
+      });
+      return { message: 'Email already verified.' };
+    }
+
+    // Verify user
     await this.prisma.user.update({
       where: { id: record.userId },
       data: { verified: true },
     });
 
-    await this.prisma.emailVerificationToken.delete({ where: { token } });
+    // Remove token
+    await this.prisma.emailVerificationToken.delete({
+      where: { token },
+    });
+
+    // 🎉 Send welcome email (DO NOT block verification)
+    await this.mail.sendWelcomeEmail(record.user.email);
 
     return { message: 'Email verified successfully.' };
   }
@@ -131,12 +149,10 @@ export class AuthService {
       where: { email },
     });
 
-    // Do NOT reveal whether the email exists
+    // Always return success (prevent account enumeration)
     if (!user) {
       return { message: 'If this email exists, a reset link has been sent.' };
     }
-
-console.log("APP_URL DEBUG:", process.env.APP_URL);
 
     const token = crypto.randomBytes(32).toString('hex');
 
@@ -172,7 +188,9 @@ console.log("APP_URL DEBUG:", process.env.APP_URL);
     }
 
     if (record.expiresAt < new Date()) {
-      await this.prisma.passwordResetToken.delete({ where: { token } });
+      await this.prisma.passwordResetToken.delete({
+        where: { token },
+      });
       throw new BadRequestException('Token expired.');
     }
 
