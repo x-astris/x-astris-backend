@@ -55,7 +55,7 @@ export class MailService {
             </a>
           </p>
 
-          <p>If you have questions, please contact us via info@x-astris.com.</p>
+          <p>If you have questions, please contact us via support@x-astris.com.</p>
         `,
       });
     } catch (error) {
