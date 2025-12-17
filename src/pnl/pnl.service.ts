@@ -76,57 +76,96 @@ export class PnlService {
      UPDATE ONLY depreciation + interest (balance → pnl sync)
      Used by: POST /pnl/update-from-balance
   ------------------------------------------------------------------ */
-  async updateFromBalance(
-    projectId: string,
-    updates: { year: number; depreciation: number; interest: number }[],
-  ) {
-    const promises = updates.map((u) =>
-      this.prisma.pnlYear.update({
-        where: {
-          projectId_year: {
-            projectId,
-            year: u.year,
-          },
+async updateFromBalance(
+  projectId: string,
+  updates: { year: number; depreciation: number; interest: number }[],
+) {
+  const promises = updates.map((u) =>
+    this.prisma.pnlYear.upsert({
+      where: {
+        projectId_year: {
+          projectId,
+          year: u.year,
         },
-        data: {
-          depreciation: u.depreciation,
-          interest: u.interest,
-        },
-      }),
-    );
+      },
+      update: {
+        depreciation: u.depreciation,
+        interest: u.interest,
+      },
+      create: {
+        projectId,
+        year: u.year,
 
-    return Promise.all(promises);
-  }
+        // required numeric fields — safe defaults
+        revenue: 0,
+        cogs: 0,
+        opex: 0,
+        taxes: 0,
+
+        // synced from balance
+        depreciation: u.depreciation,
+        interest: u.interest,
+
+        // defaults for optional fields
+        revenueGrowthPct: 0,
+        cogsPct: null,
+        opexPct: null,
+        taxRatePct: 25,
+      },
+    }),
+  );
+
+  return Promise.all(promises);
+}
 
   /* ------------------------------------------------------------------
      GENERAL UPDATE for 1 row (PATCH /pnl/update)
      Allows updating growth %, cogs %, opex %, tax rate %, etc.
   ------------------------------------------------------------------ */
-  async updateSingle(data: {
-    projectId: string;
-    year: number;
-    depreciation?: number;
-    interest?: number;
-    revenueGrowthPct?: number;
-    cogsPct?: number | null;
-    opexPct?: number | null;
-    taxRatePct?: number;
-  }) {
-    return this.prisma.pnlYear.update({
-      where: {
-        projectId_year: {
-          projectId: data.projectId,
-          year: data.year,
-        },
+async updateSingle(data: {
+  projectId: string;
+  year: number;
+  depreciation?: number;
+  interest?: number;
+  revenueGrowthPct?: number;
+  cogsPct?: number | null;
+  opexPct?: number | null;
+  taxRatePct?: number;
+}) {
+  return this.prisma.pnlYear.upsert({
+    where: {
+      projectId_year: {
+        projectId: data.projectId,
+        year: data.year,
       },
-      data: {
-        depreciation: data.depreciation,
-        interest: data.interest,
-        revenueGrowthPct: data.revenueGrowthPct,
-        cogsPct: data.cogsPct,
-        opexPct: data.opexPct,
-        taxRatePct: data.taxRatePct,
-      },
-    });
-  }
+    },
+    update: {
+      depreciation: data.depreciation,
+      interest: data.interest,
+      revenueGrowthPct: data.revenueGrowthPct,
+      cogsPct: data.cogsPct,
+      opexPct: data.opexPct,
+      taxRatePct: data.taxRatePct,
+    },
+    create: {
+      projectId: data.projectId,
+      year: data.year,
+
+      // required base fields
+      revenue: 0,
+      cogs: 0,
+      opex: 0,
+      taxes: 0,
+
+      // optional / synced
+      depreciation: data.depreciation ?? 0,
+      interest: data.interest ?? 0,
+
+      revenueGrowthPct: data.revenueGrowthPct ?? 0,
+      cogsPct: data.cogsPct ?? null,
+      opexPct: data.opexPct ?? null,
+      taxRatePct: data.taxRatePct ?? 25,
+    },
+  });
+}
 }
