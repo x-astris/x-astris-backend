@@ -20,6 +20,8 @@ async createBalance(data: {
   otherShortTermAssets?: number;
   cash?: number;
   equity?: number;
+  equityContribution?: number;
+  dividend?: number;
   longDebt?: number;
   shortDebt?: number;
   payables?: number;
@@ -36,7 +38,6 @@ async createBalance(data: {
     data: {
       projectId: data.projectId,
       year: data.year,
-
       fixedAssets: data.fixedAssets ?? 0,
       investments: data.investments ?? 0,
       inventory: data.inventory ?? 0,
@@ -44,14 +45,14 @@ async createBalance(data: {
       otherShortTermAssets: data.otherShortTermAssets ?? 0,
       cash: data.cash ?? 0,
       equity: data.equity ?? 0,
+      equityContribution: data.equityContribution ?? 0,
+      dividend: data.dividend ?? 0,
       longDebt: data.longDebt ?? 0,
       shortDebt: data.shortDebt ?? 0,
       payables: data.payables ?? 0,
       otherShortTermLiabilities: data.otherShortTermLiabilities ?? 0,
       depreciationPct: data.depreciationPct ?? 10,
       interestRatePct: data.interestRatePct ?? 5,
-
-      // ⭐ ADD KPI FIELDS BELOW
       ratioDio: data.ratioDio ?? 0,
       ratioDso: data.ratioDso ?? 0,
       ratioDpo: data.ratioDpo ?? 0,
@@ -124,22 +125,38 @@ async createBalance(data: {
      ⭐ NEW — UPDATE A SINGLE FIELD
      ====================================================== */
 
-  async updateSingle(body: {
-    projectId: string;
-    year: number;
-    field: string;
-    value: number;
-  }) {
-    return this.prisma.balanceYear.updateMany({
-      where: {
-        projectId: body.projectId,
-        year: body.year,
-      },
-      data: {
-        [body.field]: body.value,
-      },
-    });
+async updateSingle(body: {
+  projectId: string;
+  year: number;
+  field: string;
+  value: number;
+}) {
+  const allowedFields = [
+    "equityContribution",
+    "dividend",
+    "longDebt",
+    "shortDebt",
+    "interestRatePct",
+    "fixedAssets",
+    "investments",
+    "cash",
+  ];
+
+  if (!allowedFields.includes(body.field)) {
+    throw new Error(`Invalid update field: ${body.field}`);
   }
+
+  return this.prisma.balanceYear.updateMany({
+    where: {
+      projectId: body.projectId,
+      year: body.year,
+    },
+    data: {
+      [body.field]: body.value,
+    },
+  });
+}
+
 
   async updateRatio(data: {
   projectId: string;

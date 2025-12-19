@@ -23,6 +23,8 @@ export class BalanceController {
       otherShortTermAssets?: number;
       cash?: number;
       equity?: number;
+      equityContribution?: number;
+      dividend?: number;
       longDebt?: number;
       shortDebt?: number;
       payables?: number;
