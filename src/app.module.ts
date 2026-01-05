@@ -8,7 +8,9 @@ import { BalanceModule } from './balance/balance.module';
 import { CashflowModule } from './cashflow/cashflow.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AppController } from './app.controller';
-import { JwtStrategy } from './auth/jwt.strategy';  // ⬅ ADD THIS
+import { JwtStrategy } from './auth/jwt.strategy';
+import { EntitlementsService } from './common/entitlements.service';
+import { MeController } from './me/me.controller';
 
 @Module({
   imports: [
@@ -20,8 +22,9 @@ import { JwtStrategy } from './auth/jwt.strategy';  // ⬅ ADD THIS
     BalanceModule,
     CashflowModule,
     DashboardModule,
+
   ],
-  controllers: [AppController],
-  providers: [JwtStrategy],  // ⬅ ADD THIS
+  controllers: [AppController, MeController],
+  providers: [JwtStrategy, EntitlementsService],
 })
 export class AppModule {}

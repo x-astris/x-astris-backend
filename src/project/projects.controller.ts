@@ -9,6 +9,7 @@ import {
   Param,
   UseGuards,
   Request,
+  Patch,
 } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -56,6 +57,20 @@ export class ProjectsController {
       startYear: data.startYear,
       forecastYears: data.forecastYears ?? 5, // default naar 5 jaar
     });
+  }
+
+ /**
+   * Update a project (name/description/forecastYears)
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  async updateProject(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() data: { name?: string; description?: string; forecastYears?: number },
+  ) {
+    const userId = Number(req.user.id || req.user.sub);
+    return this.projectsService.updateProject(id, userId, data);
   }
 
   /**
