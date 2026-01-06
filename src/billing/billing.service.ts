@@ -10,65 +10,68 @@ export class BillingService {
 
   constructor(private prisma: PrismaService) {}
 
-  async createCheckoutSession(userId: string, email?: string) {
-    const priceId =
-      process.env.STRIPE_PREMIUM_PRICE_ID || process.env.STRIPE_PRICE_ID;
-    if (!priceId) {
-      throw new Error('Missing STRIPE_PREMIUM_PRICE_ID (or STRIPE_PRICE_ID)');
-    }
-
-    const existingSub = await this.prisma.subscription.findUnique({
-      where: { userId: Number(userId) },
-      select: { providerCustomerId: true, provider: true },
-    });
-
-    const customerId =
-      existingSub?.provider === 'stripe' ? existingSub.providerCustomerId : null;
-
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-
-      // ✅ Stripe Tax (EU B2C + B2B correct)
-      automatic_tax: { enabled: true },
-  
-      // ✅ Adres verplicht (zorgt dat VAT altijd correct berekend wordt, ook mobiel)
-      billing_address_collection: 'required',
-
-      // 🔥 B2B: VAT-nummer laten invoeren + valideren
-      tax_id_collection: { enabled: true },
-
-      customer_update: {
-        name: 'auto',
-        address: 'auto',
-      },
-
-      success_url: `${process.env.APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.APP_URL}/billing/cancel`,
-
-      client_reference_id: userId,
-
-      metadata: { userId },
-
-      subscription_data: {
-        metadata: { userId },
-      },
-
-      ...(customerId ? { customer: customerId } : {}),
-      ...(email && !customerId ? { customer_email: email } : {}),
-    });
-
-    console.log('Created checkout session', {
-      id: session.id,
-      url: session.url,
-      customer: session.customer,
-      subscription: session.subscription,
-      client_reference_id: session.client_reference_id,
-      metadata: session.metadata,
-    });
-
-    return { url: session.url };
+async createCheckoutSession(userId: string, email?: string) {
+  const priceId =
+    process.env.STRIPE_PREMIUM_PRICE_ID || process.env.STRIPE_PRICE_ID;
+  if (!priceId) {
+    throw new Error('Missing STRIPE_PREMIUM_PRICE_ID (or STRIPE_PRICE_ID)');
   }
+
+  const existingSub = await this.prisma.subscription.findUnique({
+    where: { userId: Number(userId) },
+    select: { providerCustomerId: true, provider: true },
+  });
+
+  const customerId =
+    existingSub?.provider === 'stripe' ? existingSub.providerCustomerId : null;
+
+  const baseParams: Stripe.Checkout.SessionCreateParams = {
+    mode: 'subscription',
+    line_items: [{ price: priceId, quantity: 1 }],
+
+    // ✅ Stripe Tax (EU B2C + B2B correct)
+    automatic_tax: { enabled: true },
+
+    // ✅ Adres verplicht (zorgt dat VAT altijd correct berekend wordt, ook mobiel)
+    billing_address_collection: 'required',
+
+    // 🔥 B2B: VAT-nummer laten invoeren + valideren
+    tax_id_collection: { enabled: true },
+
+    success_url: `${process.env.APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.APP_URL}/billing/cancel`,
+
+    client_reference_id: userId,
+    metadata: { userId },
+    subscription_data: { metadata: { userId } },
+  };
+
+  const sessionParams: Stripe.Checkout.SessionCreateParams = customerId
+    ? {
+        ...baseParams,
+        customer: customerId,
+        // ✅ alleen toegestaan als je `customer` meestuurt
+        customer_update: { name: 'auto' },
+      }
+    : {
+        ...baseParams,
+        ...(email ? { customer_email: email } : {}),
+        // ❌ geen customer_update hier
+      };
+
+  const session = await this.stripe.checkout.sessions.create(sessionParams);
+
+  console.log('Created checkout session', {
+    id: session.id,
+    url: session.url,
+    customer: session.customer,
+    subscription: session.subscription,
+    client_reference_id: session.client_reference_id,
+    metadata: session.metadata,
+  });
+
+  return { url: session.url };
+}
 
   async createPortalSession(userId: string) {
     const uid = Number(userId);
