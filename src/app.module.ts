@@ -11,6 +11,8 @@ import { AppController } from './app.controller';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { EntitlementsService } from './common/entitlements.service';
 import { MeController } from './me/me.controller';
+import { StripeWebhookController } from './webhooks/stripe-webhook.controller';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -22,9 +24,9 @@ import { MeController } from './me/me.controller';
     BalanceModule,
     CashflowModule,
     DashboardModule,
-
+    BillingModule,
   ],
-  controllers: [AppController, MeController],
+  controllers: [AppController, MeController, StripeWebhookController],
   providers: [JwtStrategy, EntitlementsService],
 })
 export class AppModule {}
