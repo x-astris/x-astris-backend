@@ -31,9 +31,17 @@ export class BillingService {
 
       // ✅ Stripe Tax (EU B2C + B2B correct)
       automatic_tax: { enabled: true },
+  
+      // ✅ Adres verplicht (zorgt dat VAT altijd correct berekend wordt, ook mobiel)
+      billing_address_collection: 'required',
 
       // 🔥 B2B: VAT-nummer laten invoeren + valideren
       tax_id_collection: { enabled: true },
+
+      customer_update: {
+        name: 'auto',
+        address: 'auto',
+      },
 
       success_url: `${process.env.APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/billing/cancel`,
