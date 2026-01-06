@@ -4,15 +4,20 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BillingService {
-  private stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  private stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    // Aanrader: pin je API version (gebruik de versie van jouw Stripe account)
+    // apiVersion: '2024-06-20',
+  });
 
   constructor(private prisma: PrismaService) {}
 
   async createCheckoutSession(userId: string, email?: string) {
-    const priceId = process.env.STRIPE_PREMIUM_PRICE_ID || process.env.STRIPE_PRICE_ID;
-    if (!priceId) throw new Error('Missing STRIPE_PREMIUM_PRICE_ID (or STRIPE_PRICE_ID)');
+    const priceId =
+      process.env.STRIPE_PREMIUM_PRICE_ID || process.env.STRIPE_PRICE_ID;
+    if (!priceId) {
+      throw new Error('Missing STRIPE_PREMIUM_PRICE_ID (or STRIPE_PRICE_ID)');
+    }
 
-    // Optioneel: hergebruik bestaande Stripe customer als je er al één hebt
     const existingSub = await this.prisma.subscription.findUnique({
       where: { userId: Number(userId) },
       select: { providerCustomerId: true, provider: true },
@@ -24,6 +29,9 @@ export class BillingService {
     const session = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
+
+      // ✅ Stripe Tax: zorg dat btw automatisch berekend wordt in Checkout
+      automatic_tax: { enabled: true },
 
       success_url: `${process.env.APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/billing/cancel`,
