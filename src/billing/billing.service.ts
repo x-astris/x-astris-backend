@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class BillingService {
   private stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    // Aanrader: pin je API version (gebruik de versie van jouw Stripe account)
     // apiVersion: '2024-06-20',
   });
 
@@ -30,23 +29,23 @@ export class BillingService {
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
 
-      // ✅ Stripe Tax: zorg dat btw automatisch berekend wordt in Checkout
+      // ✅ Stripe Tax (EU B2C + B2B correct)
       automatic_tax: { enabled: true },
+
+      // 🔥 B2B: VAT-nummer laten invoeren + valideren
+      tax_id_collection: { enabled: true },
 
       success_url: `${process.env.APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.APP_URL}/billing/cancel`,
 
       client_reference_id: userId,
 
-      // ✅ metadata op session (handig)
       metadata: { userId },
 
-      // ✅ metadata op subscription (BELANGRIJK voor webhooks)
       subscription_data: {
         metadata: { userId },
       },
 
-      // ✅ gebruik bestaande customer indien beschikbaar
       ...(customerId ? { customer: customerId } : {}),
       ...(email && !customerId ? { customer_email: email } : {}),
     });
