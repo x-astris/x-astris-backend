@@ -25,37 +25,91 @@ export class AuthService {
   // ------------------------------------------------------------
   // REGISTER USER + SEND VERIFICATION EMAIL
   // ------------------------------------------------------------
+ // ------------------------------------------------------------
+  // REGISTER USER + SEND VERIFICATION EMAIL
+  // Option A: if user exists but not verified -> resend verification email
+  // ------------------------------------------------------------
   async register(email: string, password: string) {
     if (!email || !password) {
       throw new BadRequestException('Email and password are required.');
     }
 
+    // (aanrader) normaliseer email zodat "Test@x.com" en "test@x.com" hetzelfde is
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1) Bestaat user al?
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, email: true, verified: true },
+    });
+
+    // 2) Bestaat en is verified -> echte conflict
+    if (existing?.verified) {
+      throw new ConflictException('Email address already exists.');
+    }
+
+    // 3) Maak altijd een nieuwe token aan (voor zowel resend als nieuwe user)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // 4) Bestaat maar nog niet verified -> resend flow
+    if (existing && !existing.verified) {
+      await this.prisma.$transaction([
+        // opruimen oude tokens
+        this.prisma.emailVerificationToken.deleteMany({
+          where: { userId: existing.id },
+        }),
+        // nieuwe token opslaan
+        this.prisma.emailVerificationToken.create({
+          data: {
+            token,
+            userId: existing.id,
+            expiresAt,
+          },
+        }),
+      ]);
+
+      await this.mail.sendVerificationEmail(existing.email, token);
+
+      // bewust 200, geen error -> frontend kan gewoon "Check your inbox" tonen
+      return { message: 'Verification email resent. Please verify your email.' };
+    }
+
+    // 5) Bestaat niet -> create user + token
     const hashed = await bcrypt.hash(password, 10);
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          email,
-          password: hashed,
-          verified: false,
-        },
-      });
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            password: hashed,
+            verified: false,
+          },
+          select: { id: true, email: true },
+        });
 
-      const token = crypto.randomBytes(32).toString('hex');
+        await tx.emailVerificationToken.create({
+          data: {
+            token,
+            userId: created.id,
+            expiresAt,
+          },
+        });
 
-      await this.prisma.emailVerificationToken.create({
-        data: {
-          token,
-          userId: user.id,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-        },
+        return created;
       });
 
       await this.mail.sendVerificationEmail(user.email, token);
 
       return { message: 'Registration successful. Please verify your email.' };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      // Deze P2002 zou nu alleen nog kunnen gebeuren als er een race condition is,
+      // of als email al bestond (maar dan hadden we het hierboven moeten vangen).
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
         throw new ConflictException('Email address already exists.');
       }
       throw new InternalServerErrorException('Registration failed.');
