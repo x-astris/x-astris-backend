@@ -1,28 +1,51 @@
 // src/cashflow/cashflow.service.ts
 
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class CashflowService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Get PNL rows for a project
+   * Ensure project belongs to user
    */
-  async getPnl(projectId: string) {
+  private async assertProjectOwned(userId: number, projectId: string) {
+    const project = await this.prisma.project.findFirst({
+      where: {
+        id: String(projectId),
+        userId: Number(userId),
+      },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found.',
+      });
+    }
+  }
+
+  /**
+   * Get PNL rows for a project (ownership enforced)
+   */
+  private async getPnl(projectId: string) {
     return this.prisma.pnlYear.findMany({
-      where: { projectId },
+      where: { projectId: String(projectId) },
       orderBy: { year: 'asc' },
     });
   }
 
   /**
-   * Get Balance rows for a project
+   * Get Balance rows for a project (ownership enforced)
    */
-  async getBalance(projectId: string) {
+  private async getBalance(projectId: string) {
     return this.prisma.balanceYear.findMany({
-      where: { projectId },
+      where: { projectId: String(projectId) },
       orderBy: { year: 'asc' },
     });
   }
@@ -30,9 +53,13 @@ export class CashflowService {
   /**
    * Combine data so front-end can calculate Cashflow
    */
-  async getFullCashflow(projectId: string) {
-    const pnl = await this.getPnl(projectId);
-    const balance = await this.getBalance(projectId);
+  async getFullCashflow(userId: number, projectId: string) {
+    await this.assertProjectOwned(userId, projectId);
+
+    const [pnl, balance] = await Promise.all([
+      this.getPnl(projectId),
+      this.getBalance(projectId),
+    ]);
 
     return {
       pnl,

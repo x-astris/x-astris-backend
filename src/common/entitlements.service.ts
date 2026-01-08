@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+// src/common/entitlements.service.ts
+
+import {
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Plan } from '@prisma/client';
 
@@ -9,10 +14,13 @@ export const FREE_LIMITS = {
 
 @Injectable()
 export class EntitlementsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getUserEntitlements(userId: number) {
     const uid = Number(userId);
+    if (!uid) {
+      throw new NotFoundException('User not found');
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: uid },
@@ -21,28 +29,44 @@ export class EntitlementsService {
         email: true,
         plan: true,
         subscription: {
-          select: { status: true, currentPeriodEnd: true },
+          select: {
+            status: true,
+            currentPeriodEnd: true,
+          },
         },
       },
     });
 
     if (!user) {
-      return null;
+      throw new NotFoundException('User not found');
     }
 
-    // Stripe-ready: later kun je premium bepalen op subscription.status + periodEnd
     const isPremium = user.plan === Plan.PREMIUM;
 
-    const projectCount = await this.prisma.project.count({ where: { userId: uid } });
+    const projectCount = await this.prisma.project.count({
+      where: { userId: uid },
+    });
 
     const limits = isPremium
-      ? { maxProjects: null, maxForecastYears: null } // null = unlimited (voor nu)
-      : { maxProjects: FREE_LIMITS.maxProjects, maxForecastYears: FREE_LIMITS.maxForecastYears };
+      ? {
+          maxProjects: null,
+          maxForecastYears: null,
+        }
+      : {
+          maxProjects: FREE_LIMITS.maxProjects,
+          maxForecastYears: FREE_LIMITS.maxForecastYears,
+        };
 
-    const canCreateProject = isPremium ? true : projectCount < FREE_LIMITS.maxProjects;
+    const canCreateProject = isPremium
+      ? true
+      : projectCount < FREE_LIMITS.maxProjects;
 
     return {
-      user: { id: user.id, email: user.email, plan: user.plan },
+      user: {
+        id: user.id,
+        email: user.email,
+        plan: user.plan,
+      },
       subscription: user.subscription,
       projectCount,
       limits,

@@ -1,3 +1,5 @@
+// src/auth/auth.controller.ts
+
 import {
   Controller,
   Post,
@@ -6,13 +8,12 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-
 import { AuthService } from './auth.service';
 import type { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   // --------------------------------------------------------
   // REGISTER
@@ -37,7 +38,7 @@ export class AuthController {
   }
 
   // --------------------------------------------------------
-  // VERIFY EMAIL (POST) - frontend API usage
+  // VERIFY EMAIL (POST) – frontend usage
   // --------------------------------------------------------
   @Post('verify-email')
   verifyEmail(@Body('token') token: string) {
@@ -45,8 +46,7 @@ export class AuthController {
   }
 
   // --------------------------------------------------------
-  // VERIFY EMAIL (GET) - clicked from email
-  // Redirects user back to your front-end
+  // VERIFY EMAIL (GET) – clicked from email
   // --------------------------------------------------------
   @Get('verify-email')
   async verifyEmailGet(
@@ -54,7 +54,8 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.verifyEmail(token);
-    res.redirect(`${process.env.APP_URL}/login?verified=1`);
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+    res.redirect(`${appUrl}/login?verified=1`);
   }
 
   // --------------------------------------------------------
@@ -74,11 +75,5 @@ export class AuthController {
     @Body('password') password: string,
   ) {
     return this.authService.resetPassword(token, password);
-  }
-
-  // TEST ROUTE
-  @Post('test')
-  test() {
-    return { ok: true };
   }
 }

@@ -1,6 +1,10 @@
 // src/pnl/pnl.service.ts
 
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const round1 = (v?: number | null) =>
@@ -13,26 +17,48 @@ const clampPct = (v?: number | null) =>
 export class PnlService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Ensure project belongs to user (or 404).
+   */
+  private async assertProjectOwned(userId: number, projectId: string) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: String(projectId), userId: Number(userId) },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found.',
+      });
+    }
+  }
+
   /* ------------------------------------------------------------------
      CREATE a record for a specific year
   ------------------------------------------------------------------ */
-  async addYear(data: {
-    projectId: string;
-    year: number;
-    revenue: number;
-    cogs: number;
-    opex: number;
-    depreciation: number;
-    interest: number;
-    taxes: number;
-    revenueGrowthPct?: number;
-    cogsPct?: number | null;
-    opexPct?: number | null;
-    taxRatePct?: number;
-  }) {
+  async addYear(
+    userId: number,
+    data: {
+      projectId: string;
+      year: number;
+      revenue: number;
+      cogs: number;
+      opex: number;
+      depreciation: number;
+      interest: number;
+      taxes: number;
+      revenueGrowthPct?: number;
+      cogsPct?: number | null;
+      opexPct?: number | null;
+      taxRatePct?: number;
+    },
+  ) {
+    await this.assertProjectOwned(userId, data.projectId);
+
     return this.prisma.pnlYear.create({
       data: {
-        projectId: data.projectId,
+        projectId: String(data.projectId),
         year: data.year,
 
         // RAW amounts (no rounding)
@@ -61,28 +87,54 @@ export class PnlService {
   /* ------------------------------------------------------------------
      GET all years for project
   ------------------------------------------------------------------ */
-  async getForProject(projectId: string) {
+  async getForProject(userId: number, projectId: string) {
+    await this.assertProjectOwned(userId, projectId);
+
     return this.prisma.pnlYear.findMany({
-      where: { projectId },
+      where: { projectId: String(projectId) },
       orderBy: { year: 'asc' },
     });
   }
 
   /* ------------------------------------------------------------------
-     GET single record by numeric id
+     GET single record by numeric id (must be ownership checked)
   ------------------------------------------------------------------ */
-  async getById(id: number) {
-    return this.prisma.pnlYear.findUnique({
-      where: { id },
+  async getById(userId: number, id: number) {
+    if (!Number.isFinite(id)) {
+      throw new BadRequestException({
+        code: 'INVALID_ID',
+        message: 'Invalid id.',
+      });
+    }
+
+    // IMPORTANT: do NOT allow enumeration across users
+    const row = await this.prisma.pnlYear.findFirst({
+      where: {
+        id,
+        project: {
+          userId: Number(userId),
+        },
+      },
     });
+
+    if (!row) {
+      throw new NotFoundException({
+        code: 'PNL_NOT_FOUND',
+        message: 'P&L row not found.',
+      });
+    }
+
+    return row;
   }
 
   /* ------------------------------------------------------------------
-     DELETE all P&L for project
+     DELETE all P&L for project (requires ownership)
   ------------------------------------------------------------------ */
-  async deleteForProject(projectId: string) {
+  async deleteForProject(userId: number, projectId: string) {
+    await this.assertProjectOwned(userId, projectId);
+
     return this.prisma.pnlYear.deleteMany({
-      where: { projectId },
+      where: { projectId: String(projectId) },
     });
   }
 
@@ -91,37 +143,36 @@ export class PnlService {
      Used by: POST /pnl/update-from-balance
   ------------------------------------------------------------------ */
   async updateFromBalance(
+    userId: number,
     projectId: string,
     updates: { year: number; depreciation: number; interest: number }[],
   ) {
+    await this.assertProjectOwned(userId, projectId);
+
     const promises = updates.map((u) =>
       this.prisma.pnlYear.upsert({
         where: {
           projectId_year: {
-            projectId,
+            projectId: String(projectId),
             year: u.year,
           },
         },
         update: {
-          // RAW amounts (no rounding)
           depreciation: u.depreciation,
           interest: u.interest,
         },
         create: {
-          projectId,
+          projectId: String(projectId),
           year: u.year,
 
-          // required numeric fields — safe defaults
           revenue: 0,
           cogs: 0,
           opex: 0,
           taxes: 0,
 
-          // synced from balance
           depreciation: u.depreciation,
           interest: u.interest,
 
-          // defaults for optional fields (KPI drivers)
           revenueGrowthPct: 0,
           cogsPct: null,
           opexPct: null,
@@ -135,24 +186,26 @@ export class PnlService {
 
   /* ------------------------------------------------------------------
      GENERAL UPDATE for 1 row (PATCH /pnl/update)
-     Allows updating growth %, cogs %, opex %, tax rate %, etc.
-     - RAW amounts remain raw
-     - KPI drivers enforced to 1 decimal, % clamped 0-100
   ------------------------------------------------------------------ */
-  async updateSingle(data: {
-    projectId: string;
-    year: number;
-    depreciation?: number;
-    interest?: number;
-    revenueGrowthPct?: number;
-    cogsPct?: number | null;
-    opexPct?: number | null;
-    taxRatePct?: number;
-  }) {
+  async updateSingle(
+    userId: number,
+    data: {
+      projectId: string;
+      year: number;
+      depreciation?: number;
+      interest?: number;
+      revenueGrowthPct?: number;
+      cogsPct?: number | null;
+      opexPct?: number | null;
+      taxRatePct?: number;
+    },
+  ) {
+    await this.assertProjectOwned(userId, data.projectId);
+
     return this.prisma.pnlYear.upsert({
       where: {
         projectId_year: {
-          projectId: data.projectId,
+          projectId: String(data.projectId),
           year: data.year,
         },
       },
@@ -189,20 +242,17 @@ export class PnlService {
           : {}),
       },
       create: {
-        projectId: data.projectId,
+        projectId: String(data.projectId),
         year: data.year,
 
-        // required base fields
         revenue: 0,
         cogs: 0,
         opex: 0,
         taxes: 0,
 
-        // optional / synced
         depreciation: data.depreciation ?? 0,
         interest: data.interest ?? 0,
 
-        // KPI drivers (enforced)
         revenueGrowthPct: round1(data.revenueGrowthPct ?? 0) ?? 0,
         cogsPct:
           data.cogsPct === null

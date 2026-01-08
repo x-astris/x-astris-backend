@@ -1,3 +1,5 @@
+// src/auth/auth.service.ts
+
 import {
   Injectable,
   UnauthorizedException,
@@ -5,28 +7,29 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
-
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
-
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-
 import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwt: JwtService,
-    private mail: MailService,
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly mail: MailService,
   ) {}
 
   // ------------------------------------------------------------
   // REGISTER USER + SEND VERIFICATION EMAIL
   // ------------------------------------------------------------
   async register(email: string, password: string) {
+    if (!email || !password) {
+      throw new BadRequestException('Email and password are required.');
+    }
+
     const hashed = await bcrypt.hash(password, 10);
 
     try {
@@ -50,21 +53,17 @@ export class AuthService {
 
       await this.mail.sendVerificationEmail(user.email, token);
 
-      return {
-        message: 'Registration successful. Please verify your email.',
-      };
+      return { message: 'Registration successful. Please verify your email.' };
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === 'P2002') {
-          throw new ConflictException('Email address already exists.');
-        }
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('Email address already exists.');
       }
       throw new InternalServerErrorException('Registration failed.');
     }
   }
 
   // ------------------------------------------------------------
-  // VERIFY EMAIL TOKEN + SEND WELCOME EMAIL
+  // VERIFY EMAIL TOKEN
   // ------------------------------------------------------------
   async verifyEmail(token: string) {
     if (!token) {
@@ -76,56 +75,47 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (!record) {
+    if (!record || record.expiresAt < new Date()) {
+      if (record) {
+        await this.prisma.emailVerificationToken.delete({ where: { token } });
+      }
       throw new BadRequestException('Invalid or expired token.');
     }
 
-    if (record.expiresAt < new Date()) {
-      await this.prisma.emailVerificationToken.delete({
-        where: { token },
-      });
-      throw new BadRequestException('Token expired.');
-    }
-
-    // Already verified (idempotency guard)
     if (record.user.verified) {
-      await this.prisma.emailVerificationToken.delete({
-        where: { token },
-      });
+      await this.prisma.emailVerificationToken.delete({ where: { token } });
       return { message: 'Email already verified.' };
     }
 
-    // Verify user
     await this.prisma.user.update({
       where: { id: record.userId },
       data: { verified: true },
     });
 
-    // Remove token
     await this.prisma.emailVerificationToken.delete({
       where: { token },
     });
 
-    // 🎉 Send welcome email (DO NOT block verification)
-    await this.mail.sendWelcomeEmail(record.user.email);
+    // fire-and-forget
+    void this.mail.sendWelcomeEmail(record.user.email);
 
     return { message: 'Email verified successfully.' };
   }
 
   // ------------------------------------------------------------
-  // LOGIN (BLOCK UNVERIFIED USERS)
+  // LOGIN
   // ------------------------------------------------------------
   async login(email: string, password: string) {
+    if (!email || !password) {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
 
-    if (!user) {
+    if (!user || !user.verified) {
       throw new UnauthorizedException('Invalid credentials.');
-    }
-
-    if (!user.verified) {
-      throw new UnauthorizedException('Please verify your email first.');
     }
 
     const valid = await bcrypt.compare(password, user.password);
@@ -145,14 +135,22 @@ export class AuthService {
   // REQUEST PASSWORD RESET
   // ------------------------------------------------------------
   async requestPasswordReset(email: string) {
+    if (!email) {
+      return { message: 'If this email exists, a reset link has been sent.' };
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
 
-    // Always return success (prevent account enumeration)
     if (!user) {
       return { message: 'If this email exists, a reset link has been sent.' };
     }
+
+    // Optional cleanup: remove old tokens
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
 
     const token = crypto.randomBytes(32).toString('hex');
 
@@ -164,7 +162,8 @@ export class AuthService {
       },
     });
 
-    const resetUrl = `${process.env.APP_URL}/reset-password?token=${token}`;
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
     await this.mail.sendPasswordResetMail(user.email, resetUrl);
 
@@ -175,23 +174,19 @@ export class AuthService {
   // RESET PASSWORD
   // ------------------------------------------------------------
   async resetPassword(token: string, newPassword: string) {
-    if (!token) {
-      throw new BadRequestException('Token is required.');
+    if (!token || !newPassword) {
+      throw new BadRequestException('Token and password are required.');
     }
 
     const record = await this.prisma.passwordResetToken.findUnique({
       where: { token },
     });
 
-    if (!record) {
+    if (!record || record.expiresAt < new Date()) {
+      if (record) {
+        await this.prisma.passwordResetToken.delete({ where: { token } });
+      }
       throw new BadRequestException('Invalid or expired token.');
-    }
-
-    if (record.expiresAt < new Date()) {
-      await this.prisma.passwordResetToken.delete({
-        where: { token },
-      });
-      throw new BadRequestException('Token expired.');
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);

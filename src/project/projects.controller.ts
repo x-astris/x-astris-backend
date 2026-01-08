@@ -25,7 +25,7 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async getProjects(@Request() req) {
-    const userId = req.user.id || req.user.sub;
+    const userId = Number(req.user.id ?? req.user.sub);
     return this.projectsService.getProjectsByUser(userId);
   }
 
@@ -35,7 +35,7 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getProject(@Param('id') id: string, @Request() req) {
-    const userId = req.user.id || req.user.sub;
+    const userId = Number(req.user.id ?? req.user.sub);
     return this.projectsService.getProjectById(id, userId);
   }
 
@@ -48,7 +48,7 @@ export class ProjectsController {
     @Request() req,
     @Body() data: CreateProjectDto,
   ) {
-    const userId = req.user.id || req.user.sub;
+    const userId = Number(req.user.id ?? req.user.sub);
 
     return this.projectsService.createProject({
       userId,
@@ -69,7 +69,7 @@ export class ProjectsController {
     @Request() req,
     @Body() data: { name?: string; description?: string; forecastYears?: number },
   ) {
-    const userId = Number(req.user.id || req.user.sub);
+    const userId = Number(req.user.id ?? req.user.sub);
     return this.projectsService.updateProject(id, userId, data);
   }
 
@@ -79,7 +79,7 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   async deleteProject(@Param('id') id: string, @Request() req) {
-    const userId = Number(req.user.id || req.user.sub);
+    const userId = Number(req.user.id ?? req.user.sub);
     return this.projectsService.deleteProject(id, userId);
   }
 }

@@ -1,53 +1,75 @@
 // src/pnl/pnl.controller.ts
-import { Controller, Post, Body, Get, Query, Delete, Patch } from '@nestjs/common';
-import { PnlService } from './pnl.service';
 
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Query,
+  Delete,
+  Patch,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import { PnlService } from './pnl.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+@UseGuards(JwtAuthGuard)
 @Controller('pnl')
 export class PnlController {
   constructor(private readonly pnlService: PnlService) {}
 
-@Post('add')
-async addPnlRecord(
-  @Body()
-  body: {
-    projectId: string;
-    year: number;
+  @Post('add')
+  async addPnlRecord(
+    @Request() req,
+    @Body()
+    body: {
+      projectId: string;
+      year: number;
 
-    revenue: number;
-    cogs: number;
-    opex: number;
-    depreciation: number;
-    interest: number;
-    taxes: number;
+      revenue: number;
+      cogs: number;
+      opex: number;
+      depreciation: number;
+      interest: number;
+      taxes: number;
 
-    revenueGrowthPct?: number;
-    cogsPct?: number | null;
-    opexPct?: number | null;
-    taxRatePct?: number;
-
+      revenueGrowthPct?: number;
+      cogsPct?: number | null;
+      opexPct?: number | null;
+      taxRatePct?: number;
+    },
+  ) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.addYear(userId, body);
   }
-) {
-  return this.pnlService.addYear(body);
-}
 
   @Get()
-  async getForProject(@Query('projectId') projectId: string) {
-    return this.pnlService.getForProject(projectId);
+  async getForProject(@Request() req, @Query('projectId') projectId: string) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.getForProject(userId, projectId);
   }
 
+  /**
+   * ⚠️ This endpoint is risky because it accepts a numeric row id.
+   * Keep it only if you truly need it.
+   * If kept, it MUST be ownership-checked (done in service).
+   */
   @Get('single')
-  async getSingle(@Query('id') id: string) {
-    return this.pnlService.getById(Number(id));
+  async getSingle(@Request() req, @Query('id') id: string) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.getById(userId, Number(id));
   }
 
   @Delete()
-  async deleteForProject(@Query('projectId') projectId: string) {
-    return this.pnlService.deleteForProject(projectId);
+  async deleteForProject(@Request() req, @Query('projectId') projectId: string) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.deleteForProject(userId, projectId);
   }
 
-  // ⭐ NEW PATCH ENDPOINT
   @Patch('update')
   async updatePnlValue(
+    @Request() req,
     @Body()
     body: {
       projectId: string;
@@ -58,20 +80,22 @@ async addPnlRecord(
       cogsPct?: number | null;
       opexPct?: number | null;
       taxRatePct?: number;
-    }
+    },
   ) {
-    return this.pnlService.updateSingle(body);
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.updateSingle(userId, body);
   }
 
-  // already existing:
-  @Post("update-from-balance")
+  @Post('update-from-balance')
   async updateFromBalance(
+    @Request() req,
     @Body()
     body: {
       projectId: string;
       updates: { year: number; depreciation: number; interest: number }[];
-    }
+    },
   ) {
-    return this.pnlService.updateFromBalance(body.projectId, body.updates);
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.pnlService.updateFromBalance(userId, body.projectId, body.updates);
   }
 }

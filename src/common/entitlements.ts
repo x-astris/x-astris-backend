@@ -1,3 +1,5 @@
+// src/common/entitlements.ts
+
 import { Plan } from '@prisma/client';
 
 export const FREE_LIMITS = {
@@ -5,6 +7,6 @@ export const FREE_LIMITS = {
   maxForecastYears: 5,
 } as const;
 
-export function isPremium(user: { plan: Plan }) {
-  return user.plan === Plan.PREMIUM;
+export function isPremium(user: { plan: Plan } | null | undefined): boolean {
+  return user?.plan === Plan.PREMIUM;
 }

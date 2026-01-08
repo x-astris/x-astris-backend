@@ -1,32 +1,41 @@
-import { Controller, Post, Req, UseGuards, BadRequestException } from '@nestjs/common';
+// src/billing/billing.controller.ts
+
+import {
+  Controller,
+  Post,
+  Req,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('create-checkout-session')
   async createCheckoutSession(@Req() req: Request) {
-    const userId = Number((req as any).user?.id || (req as any).user?.sub);
-    const email = (req as any).user?.email;
+    const user = (req as any).user;
+    const userId = Number(user?.id ?? user?.sub);
+    const email = user?.email;
 
-    if (!userId) {
-      throw new BadRequestException('Missing user id in token');
+    if (!userId || !email) {
+      throw new BadRequestException('Invalid user token');
     }
 
     return this.billing.createCheckoutSession(String(userId), email);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('portal')
   async createPortalSession(@Req() req: Request) {
-    const userId = Number((req as any).user?.id || (req as any).user?.sub);
+    const user = (req as any).user;
+    const userId = Number(user?.id ?? user?.sub);
 
     if (!userId) {
-      throw new BadRequestException('Missing user id in token');
+      throw new BadRequestException('Invalid user token');
     }
 
     return this.billing.createPortalSession(String(userId));

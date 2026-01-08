@@ -1,8 +1,20 @@
 // src/balance/balance.controller.ts
 
-import { Controller, Post, Body, Get, Query, Delete, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Query,
+  Delete,
+  Patch,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { BalanceService } from './balance.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard) // ✅ everything in this controller requires login
 @Controller('balance')
 export class BalanceController {
   constructor(private readonly balanceService: BalanceService) {}
@@ -12,6 +24,7 @@ export class BalanceController {
    */
   @Post('create')
   async createBalance(
+    @Request() req,
     @Body()
     body: {
       projectId: string;
@@ -38,35 +51,62 @@ export class BalanceController {
       ratioOclPct?: number;
     },
   ) {
-    return this.balanceService.createBalance(body);
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.balanceService.createBalance(userId, body);
   }
 
   /**
    * GET /balance?projectId=abc-uuid
    */
   @Get()
-  async getBalances(@Query('projectId') projectId: string) {
-    return this.balanceService.getByProject(projectId);
+  async getBalances(@Request() req, @Query('projectId') projectId: string) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.balanceService.getByProject(userId, projectId);
   }
 
   /**
    * DELETE /balance?projectId=abc-uuid
    */
   @Delete()
-  async deleteBalances(@Query('projectId') projectId: string) {
-    return this.balanceService.deleteByProject(projectId);
+  async deleteBalances(@Request() req, @Query('projectId') projectId: string) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.balanceService.deleteByProject(userId, projectId);
   }
 
-  @Patch("update-ratio")
-async updateRatio(
-  @Body()
-  body: {
-    projectId: string;
-    year: number;
-    field: string;   // e.g. "ratioDio"
-    value: number;
+  /**
+   * PATCH /balance/update-ratio
+   */
+  @Patch('update-ratio')
+  async updateRatio(
+    @Request() req,
+    @Body()
+    body: {
+      projectId: string;
+      year: number;
+      field: string; // e.g. "ratioDio"
+      value: number;
+    },
+  ) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.balanceService.updateRatio(userId, body);
   }
-) {
-  return this.balanceService.updateRatio(body);
-}
+
+  /**
+   * (Optional, if you use it) PATCH /balance/update-single
+   * Only include this route if the frontend calls updateSingle().
+   */
+  @Patch('update-single')
+  async updateSingle(
+    @Request() req,
+    @Body()
+    body: {
+      projectId: string;
+      year: number;
+      field: string; // e.g. "cash"
+      value: number;
+    },
+  ) {
+    const userId = Number(req.user.id ?? req.user.sub);
+    return this.balanceService.updateSingle(userId, body);
+  }
 }
