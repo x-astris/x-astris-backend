@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateBalanceDto } from './dto/create-balance.dto';
 
 @Injectable()
 export class BalanceService {
@@ -34,31 +35,8 @@ export class BalanceService {
    */
   async createBalance(
     userId: number,
-    data: {
-      projectId: string;
-      year: number;
-      fixedAssets?: number;
-      investments?: number;
-      inventory?: number;
-      receivables?: number;
-      otherShortTermAssets?: number;
-      cash?: number;
-      equity?: number;
-      equityContribution?: number;
-      dividend?: number;
-      longDebt?: number;
-      shortDebt?: number;
-      payables?: number;
-      otherShortTermLiabilities?: number;
-      depreciationPct?: number;
-      interestRatePct?: number;
-      ratioDio?: number;
-      ratioDso?: number;
-      ratioDpo?: number;
-      ratioOcaPct?: number;
-      ratioOclPct?: number;
-    },
-  ) {
+    data: CreateBalanceDto)
+   {
     await this.assertProjectOwned(userId, data.projectId);
 
     return this.prisma.balanceYear.create({

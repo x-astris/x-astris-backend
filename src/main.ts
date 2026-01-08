@@ -1,9 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-
+import { ValidationPipe } from '@nestjs/common';
 import * as express from 'express';
+import helmet from 'helmet';
+import { authRateLimit } from './common/rate-limit/auth-rate-limit';
 
 async function bootstrap() {
+ 
+    if (!process.env.JWT_SECRET) {
+  throw new Error('Missing env var: JWT_SECRET');
+}
+
   const app = await NestFactory.create(AppModule, {
     // Belangrijk: anders zet Nest automatisch express.json() aan voor ALLES
     bodyParser: false,
@@ -13,7 +20,6 @@ async function bootstrap() {
         'https://x-astris-frontend.vercel.app',
         'https://x-astris.com',
         'https://www.x-astris.com',
-        'null',
       ],
       credentials: false,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
@@ -21,7 +27,23 @@ async function bootstrap() {
     },
   });
 
+  app.use(helmet());
+
+  app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  }),
+);
+
   app.setGlobalPrefix('api');
+
+  app.use('/api/auth/login', authRateLimit);
+  app.use('/api/auth/reset-password', authRateLimit);
 
   // ✅ Stripe webhook: raw body nodig voor signature verify
   app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));

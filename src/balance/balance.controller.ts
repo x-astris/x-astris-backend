@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { BalanceService } from './balance.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateBalanceDto } from './dto/create-balance.dto';
 
 @UseGuards(JwtAuthGuard) // ✅ everything in this controller requires login
 @Controller('balance')
@@ -22,38 +23,11 @@ export class BalanceController {
   /**
    * POST /balance/create
    */
-  @Post('create')
-  async createBalance(
-    @Request() req,
-    @Body()
-    body: {
-      projectId: string;
-      year: number;
-      fixedAssets?: number;
-      investments?: number;
-      inventory?: number;
-      receivables?: number;
-      otherShortTermAssets?: number;
-      cash?: number;
-      equity?: number;
-      equityContribution?: number;
-      dividend?: number;
-      longDebt?: number;
-      shortDebt?: number;
-      payables?: number;
-      otherShortTermLiabilities?: number;
-      depreciationPct: number;
-      interestRatePct: number;
-      ratioDio?: number;
-      ratioDso?: number;
-      ratioDpo?: number;
-      ratioOcaPct?: number;
-      ratioOclPct?: number;
-    },
-  ) {
-    const userId = Number(req.user.id ?? req.user.sub);
-    return this.balanceService.createBalance(userId, body);
-  }
+@Post('create')
+async createBalance(@Request() req, @Body() body: CreateBalanceDto) {
+  const userId = Number(req.user.id ?? req.user.sub);
+  return this.balanceService.createBalance(userId, body);
+}
 
   /**
    * GET /balance?projectId=abc-uuid
