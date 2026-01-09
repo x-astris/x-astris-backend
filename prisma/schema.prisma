@@ -57,7 +57,7 @@ model Project {
   forecastYears Int           @default(5)
   balYears      BalanceYear[]
   pnlYears      PnlYear[]
-  user          User          @relation(fields: [userId], references: [id])
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PnlYear {
@@ -74,6 +74,7 @@ model PnlYear {
   opexPct          Float?  @default(0)
   revenueGrowthPct Float?  @default(0)
   taxRatePct       Float?  @default(25)
+
   project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, year])
@@ -103,7 +104,9 @@ model BalanceYear {
   ratioOclPct               Float?
   dividend                  Float   @default(0)
   equityContribution        Float   @default(0)
+
   project                   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@unique([projectId, year])
 }
 
@@ -113,6 +116,7 @@ model EmailVerificationToken {
   userId    Int
   expiresAt DateTime
   createdAt DateTime @default(now())
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -122,5 +126,6 @@ model PasswordResetToken {
   userId    Int
   expiresAt DateTime
   createdAt DateTime @default(now())
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
